@@ -1,17 +1,19 @@
 /**
  * Hotel Booking Application
- * Version 4.1 - Room Search & Availability Check
+ * Version 5.1 - Booking Request Queue (First-Come-First-Served)
  *
- * Demonstrates read-only access to centralized inventory.
- * Guests can view available rooms without modifying state.
+ * Demonstrates fair handling of booking requests using a Queue.
+ * Requests are collected in arrival order without modifying inventory.
  *
  * @author YourName
- * @version 4.1
+ * @version 5.1
  */
 
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 
-// Abstract class
+// Abstract Room
 abstract class Room {
     String type;
     int beds;
@@ -52,15 +54,53 @@ class RoomInventory {
     public int getAvailability(String roomType) { return inventory.getOrDefault(roomType, 0); }
     public void updateAvailability(String roomType, int count) { if(inventory.containsKey(roomType)) inventory.put(roomType, count); }
 
+    public HashMap<String, Integer> getInventorySnapshot() { return new HashMap<>(inventory); }
+
     public void displayInventory() {
         System.out.println("===== Current Room Inventory =====");
         for(String type : inventory.keySet())
             System.out.println(type + " | Available: " + inventory.get(type));
     }
+}
 
-    // UC4: Read-only access for search
-    public HashMap<String, Integer> getInventorySnapshot() {
-        return new HashMap<>(inventory); // return a copy to prevent modifications
+// UC5: Reservation Request
+class Reservation {
+    String guestName;
+    String roomType;
+
+    Reservation(String guestName, String roomType) {
+        this.guestName = guestName;
+        this.roomType = roomType;
+    }
+
+    void displayRequest() {
+        System.out.println("Guest: " + guestName + " | Requested Room: " + roomType);
+    }
+}
+
+// UC5: Booking Request Queue
+class BookingRequestQueue {
+    private Queue<Reservation> queue;
+
+    public BookingRequestQueue() { queue = new LinkedList<>(); }
+
+    // Add request to queue
+    public void addRequest(Reservation r) {
+        queue.offer(r); // FIFO
+        System.out.println("Request added for guest: " + r.guestName);
+    }
+
+    // Peek at next request (without removing)
+    public Reservation peekNext() { return queue.peek(); }
+
+    // Process request (removes from queue)
+    public Reservation processNext() { return queue.poll(); }
+
+    // Display all queued requests
+    public void displayQueue() {
+        System.out.println("\n===== Booking Requests Queue =====");
+        if(queue.isEmpty()) System.out.println("No pending requests.");
+        else for(Reservation r : queue) r.displayRequest();
     }
 }
 
@@ -68,7 +108,7 @@ class RoomInventory {
 public class HotelBookingApplication {
 
     public static void main(String[] args) {
-        System.out.println("===== Book My Stay App v4.1 =====");
+        System.out.println("===== Book My Stay App v5.1 =====");
 
         // Room objects
         Room single = new SingleRoom();
@@ -78,27 +118,34 @@ public class HotelBookingApplication {
         // Centralized inventory
         RoomInventory inventory = new RoomInventory();
         inventory.addRoomType(single.type, 5);
-        inventory.addRoomType(doubleRoom.type, 0); // Simulate fully booked
+        inventory.addRoomType(doubleRoom.type, 3);
         inventory.addRoomType(suite.type, 2);
 
-        // Display inventory
         inventory.displayInventory();
 
-        // UC4: Search service - read-only room availability
-        System.out.println("\n===== Available Rooms for Guests =====");
-        searchAvailableRooms(inventory, new Room[]{single, doubleRoom, suite});
-    }
+        // UC5: Booking Request Queue
+        BookingRequestQueue requestQueue = new BookingRequestQueue();
 
-    // UC4: Search method
-    public static void searchAvailableRooms(RoomInventory inventory, Room[] rooms) {
-        HashMap<String, Integer> snapshot = inventory.getInventorySnapshot();
+        // Add multiple booking requests (FIFO)
+        requestQueue.addRequest(new Reservation("Alice", "Single Room"));
+        requestQueue.addRequest(new Reservation("Bob", "Double Room"));
+        requestQueue.addRequest(new Reservation("Charlie", "Suite Room"));
+        requestQueue.addRequest(new Reservation("David", "Single Room"));
 
-        for(Room room : rooms) {
-            int available = snapshot.getOrDefault(room.type, 0);
-            if(available > 0) {
-                room.displayRoomDetails();
-                System.out.println("Available: " + available + "\n");
-            }
-        }
+        // Display queue
+        requestQueue.displayQueue();
+
+        // Peek at next request
+        System.out.println("\nNext request to process:");
+        Reservation next = requestQueue.peekNext();
+        if(next != null) next.displayRequest();
+
+        // Process first request
+        System.out.println("\nProcessing first request...");
+        Reservation processed = requestQueue.processNext();
+        if(processed != null) processed.displayRequest();
+
+        // Display updated queue
+        requestQueue.displayQueue();
     }
 }
