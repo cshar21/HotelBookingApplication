@@ -2,13 +2,12 @@ import java.util.*;
 
 /**
  * HotelBookingApplication - Book My Stay App
- * Version 4.0 (Refactored to include Booking History & Reporting)
+ * Version 5.0 (UC1–UC9 Fully Integrated)
  *
  * Demonstrates core Java, OOP, and data structures through a Hotel Booking Management System.
- * Includes Use Cases 1–8.
  *
  * Author: YourName
- * Version: 4.0
+ * Version: 5.0
  */
 public class HotelBookingApplication {
 
@@ -67,6 +66,10 @@ public class HotelBookingApplication {
             for (String roomType : roomAvailability.keySet()) {
                 System.out.println(roomType + " : " + roomAvailability.get(roomType) + " available");
             }
+        }
+
+        Map<String, Integer> getRoomAvailabilityMap() {
+            return roomAvailability;
         }
     }
 
@@ -200,12 +203,39 @@ public class HotelBookingApplication {
         }
     }
 
+    // ---------------- UC9: Error Handling & Validation ----------------
+    static class InvalidBookingException extends Exception {
+        public InvalidBookingException(String message) {
+            super(message);
+        }
+    }
+
+    static class BookingValidator {
+
+        public static void validateRoomType(String roomType, Map<String, Integer> inventory) throws InvalidBookingException {
+            if (!inventory.containsKey(roomType)) {
+                throw new InvalidBookingException("Invalid room type: " + roomType);
+            }
+        }
+
+        public static void validateAvailability(String roomType, Map<String, Integer> inventory) throws InvalidBookingException {
+            if (inventory.getOrDefault(roomType, 0) <= 0) {
+                throw new InvalidBookingException("No rooms available for type: " + roomType);
+            }
+        }
+
+        public static void validateService(Service service) throws InvalidBookingException {
+            if (service == null || service.name == null || service.cost < 0) {
+                throw new InvalidBookingException("Invalid add-on service: " + (service != null ? service.name : "null"));
+            }
+        }
+    }
+
     // ---------------- Main Method ----------------
     public static void main(String[] args) {
-        // UC1: Welcome Message
-        System.out.println("Welcome to Book My Stay App v4.0!");
+        System.out.println("Welcome to Book My Stay App v5.0!");
 
-        // UC2: Initialize rooms
+        // UC2: Display Rooms
         Room singleRoom = new SingleRoom();
         Room doubleRoom = new DoubleRoom();
         Room suiteRoom = new SuiteRoom();
@@ -235,7 +265,7 @@ public class HotelBookingApplication {
             if (roomId != null) {
                 System.out.println("Reservation Confirmed for " + res.guestName + " | RoomID: " + roomId);
                 confirmedReservations.put(res.guestName, roomId);
-                bookingHistory.addReservation(res); // UC8: Add to history
+                bookingHistory.addReservation(res);
             } else {
                 System.out.println("Sorry " + res.guestName + ", " + res.roomType + " not available.");
             }
@@ -264,5 +294,23 @@ public class HotelBookingApplication {
         // UC8: Booking History Report
         BookingReportService reportService = new BookingReportService();
         reportService.generateReport(bookingHistory);
+
+        // UC9: Example of Error Handling
+        try {
+            String requestedRoomType = "Single Room";
+            BookingValidator.validateRoomType(requestedRoomType, inventory.getRoomAvailabilityMap());
+            BookingValidator.validateAvailability(requestedRoomType, inventory.getRoomAvailabilityMap());
+
+            String reservationId = allocationService.allocateRoom(requestedRoomType);
+
+            Service breakfast = new Service("Breakfast", 200);
+            BookingValidator.validateService(breakfast);
+            serviceManager.addService(reservationId, breakfast);
+
+            System.out.println("Booking successful for " + requestedRoomType + " | Reservation ID: " + reservationId);
+
+        } catch (InvalidBookingException e) {
+            System.err.println("Booking failed: " + e.getMessage());
+        }
     }
 }
