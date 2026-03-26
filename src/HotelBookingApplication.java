@@ -2,17 +2,17 @@ import java.util.*;
 
 /**
  * HotelBookingApplication - Book My Stay App
- * Version 3.1 (Refactored to include Add-On Services)
+ * Version 4.0 (Refactored to include Booking History & Reporting)
  *
- * This application demonstrates core Java concepts, OOP, and data structures
- * through a Hotel Booking Management System with multiple use cases.
+ * Demonstrates core Java, OOP, and data structures through a Hotel Booking Management System.
+ * Includes Use Cases 1–8.
  *
- * @author YourName
- * @version 3.1
+ * Author: YourName
+ * Version: 4.0
  */
 public class HotelBookingApplication {
 
-    // UC2: Room Classes
+    // ---------------- UC2: Room Classes ----------------
     abstract static class Room {
         String type;
         int beds;
@@ -41,7 +41,7 @@ public class HotelBookingApplication {
         SuiteRoom() { super("Suite Room", 3, 3000); }
     }
 
-    // UC3: Inventory Management
+    // ---------------- UC3: Inventory Management ----------------
     static class Inventory {
         private Map<String, Integer> roomAvailability;
 
@@ -57,20 +57,20 @@ public class HotelBookingApplication {
         }
 
         void allocateRoom(String roomType) {
-            if(isAvailable(roomType)) {
+            if (isAvailable(roomType)) {
                 roomAvailability.put(roomType, roomAvailability.get(roomType) - 1);
             }
         }
 
         void displayAvailability() {
             System.out.println("\n===== Current Inventory =====");
-            for(String roomType : roomAvailability.keySet()) {
+            for (String roomType : roomAvailability.keySet()) {
                 System.out.println(roomType + " : " + roomAvailability.get(roomType) + " available");
             }
         }
     }
 
-    // UC5: Booking Request
+    // ---------------- UC5: Booking Request ----------------
     static class Reservation {
         String guestName;
         String roomType;
@@ -101,7 +101,7 @@ public class HotelBookingApplication {
         }
     }
 
-    // UC6: Room Allocation Service
+    // ---------------- UC6: Room Allocation Service ----------------
     static class RoomAllocationService {
         Inventory inventory;
         Map<String, Set<String>> allocatedRooms; // roomType -> roomIDs
@@ -114,7 +114,7 @@ public class HotelBookingApplication {
         }
 
         String allocateRoom(String roomType) {
-            if(!inventory.isAvailable(roomType)) return null;
+            if (!inventory.isAvailable(roomType)) return null;
 
             String roomId = roomType.substring(0, 2).toUpperCase() + String.format("%03d", roomCounter++);
             allocatedRooms.putIfAbsent(roomType, new HashSet<>());
@@ -125,13 +125,13 @@ public class HotelBookingApplication {
 
         void displayAllocatedRooms() {
             System.out.println("\n===== Allocated Rooms =====");
-            for(String roomType : allocatedRooms.keySet()) {
+            for (String roomType : allocatedRooms.keySet()) {
                 System.out.println(roomType + " : " + allocatedRooms.get(roomType));
             }
         }
     }
 
-    // UC7: Add-On Services
+    // ---------------- UC7: Add-On Services ----------------
     static class Service {
         String name;
         double cost;
@@ -157,15 +157,15 @@ public class HotelBookingApplication {
         double getTotalServiceCost(String reservationId) {
             List<Service> services = reservationServices.getOrDefault(reservationId, new ArrayList<>());
             double total = 0;
-            for(Service s : services) total += s.cost;
+            for (Service s : services) total += s.cost;
             return total;
         }
 
         void displayAllServices() {
             System.out.println("\n===== Add-On Services Per Reservation =====");
-            for(String resId : reservationServices.keySet()) {
+            for (String resId : reservationServices.keySet()) {
                 System.out.println("Reservation: " + resId);
-                for(Service s : reservationServices.get(resId)) {
+                for (Service s : reservationServices.get(resId)) {
                     System.out.println("  - " + s.name + " | Cost: " + s.cost);
                 }
                 System.out.println("  Total Add-On Cost: " + getTotalServiceCost(resId));
@@ -173,9 +173,37 @@ public class HotelBookingApplication {
         }
     }
 
+    // ---------------- UC8: Booking History & Reporting ----------------
+    static class BookingHistory {
+        List<Reservation> confirmedReservations;
+
+        BookingHistory() {
+            confirmedReservations = new ArrayList<>();
+        }
+
+        void addReservation(Reservation res) {
+            confirmedReservations.add(res);
+        }
+
+        List<Reservation> getAllReservations() {
+            return confirmedReservations;
+        }
+    }
+
+    static class BookingReportService {
+        void generateReport(BookingHistory history) {
+            System.out.println("\n===== Booking History Report =====");
+            for (Reservation res : history.getAllReservations()) {
+                System.out.println("Guest: " + res.guestName + " | Room Type: " + res.roomType);
+            }
+            System.out.println("Total Bookings: " + history.getAllReservations().size());
+        }
+    }
+
+    // ---------------- Main Method ----------------
     public static void main(String[] args) {
         // UC1: Welcome Message
-        System.out.println("Welcome to Book My Stay App v3.1!");
+        System.out.println("Welcome to Book My Stay App v4.0!");
 
         // UC2: Initialize rooms
         Room singleRoom = new SingleRoom();
@@ -199,13 +227,15 @@ public class HotelBookingApplication {
         // UC6: Room Allocation
         RoomAllocationService allocationService = new RoomAllocationService(inventory);
         Map<String, String> confirmedReservations = new HashMap<>(); // guest -> roomId
+        BookingHistory bookingHistory = new BookingHistory();
 
-        while(queue.hasPendingRequests()) {
+        while (queue.hasPendingRequests()) {
             Reservation res = queue.getNextRequest();
             String roomId = allocationService.allocateRoom(res.roomType);
-            if(roomId != null) {
+            if (roomId != null) {
                 System.out.println("Reservation Confirmed for " + res.guestName + " | RoomID: " + roomId);
                 confirmedReservations.put(res.guestName, roomId);
+                bookingHistory.addReservation(res); // UC8: Add to history
             } else {
                 System.out.println("Sorry " + res.guestName + ", " + res.roomType + " not available.");
             }
@@ -214,23 +244,25 @@ public class HotelBookingApplication {
         allocationService.displayAllocatedRooms();
         inventory.displayAvailability();
 
-        // UC7: Add-On Service Selection
+        // UC7: Add-On Services
         AddOnServiceManager serviceManager = new AddOnServiceManager();
-        // Example: attach services to reservations
-        for(String guest : confirmedReservations.keySet()) {
+        for (String guest : confirmedReservations.keySet()) {
             String roomId = confirmedReservations.get(guest);
-            if(guest.equals("Alice")) {
+            if (guest.equals("Alice")) {
                 serviceManager.addService(roomId, new Service("Breakfast", 200));
                 serviceManager.addService(roomId, new Service("Airport Pickup", 500));
             }
-            if(guest.equals("Bob")) {
+            if (guest.equals("Bob")) {
                 serviceManager.addService(roomId, new Service("Spa", 800));
             }
-            if(guest.equals("Charlie")) {
+            if (guest.equals("Charlie")) {
                 serviceManager.addService(roomId, new Service("Welcome Drinks", 300));
             }
         }
-
         serviceManager.displayAllServices();
+
+        // UC8: Booking History Report
+        BookingReportService reportService = new BookingReportService();
+        reportService.generateReport(bookingHistory);
     }
 }
