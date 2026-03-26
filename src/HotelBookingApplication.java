@@ -2,12 +2,12 @@ import java.util.*;
 
 /**
  * HotelBookingApplication - Book My Stay App
- * Version 5.0 (UC1–UC9 Fully Integrated)
+ * Version 6.0 (UC1–UC10 Fully Integrated)
  *
  * Demonstrates core Java, OOP, and data structures through a Hotel Booking Management System.
  *
  * Author: YourName
- * Version: 5.0
+ * Version: 6.0
  */
 public class HotelBookingApplication {
 
@@ -59,6 +59,10 @@ public class HotelBookingApplication {
             if (isAvailable(roomType)) {
                 roomAvailability.put(roomType, roomAvailability.get(roomType) - 1);
             }
+        }
+
+        void releaseRoom(String roomType) {
+            roomAvailability.put(roomType, roomAvailability.getOrDefault(roomType, 0) + 1);
         }
 
         void displayAvailability() {
@@ -126,6 +130,12 @@ public class HotelBookingApplication {
             return roomId;
         }
 
+        void releaseRoom(String roomType, String roomId) {
+            if (allocatedRooms.containsKey(roomType) && allocatedRooms.get(roomType).remove(roomId)) {
+                inventory.releaseRoom(roomType);
+            }
+        }
+
         void displayAllocatedRooms() {
             System.out.println("\n===== Allocated Rooms =====");
             for (String roomType : allocatedRooms.keySet()) {
@@ -174,6 +184,10 @@ public class HotelBookingApplication {
                 System.out.println("  Total Add-On Cost: " + getTotalServiceCost(resId));
             }
         }
+
+        void removeServices(String reservationId) {
+            reservationServices.remove(reservationId);
+        }
     }
 
     // ---------------- UC8: Booking History & Reporting ----------------
@@ -188,8 +202,19 @@ public class HotelBookingApplication {
             confirmedReservations.add(res);
         }
 
+        void removeReservation(String guestName) {
+            confirmedReservations.removeIf(r -> r.guestName.equals(guestName));
+        }
+
         List<Reservation> getAllReservations() {
             return confirmedReservations;
+        }
+
+        boolean exists(String guestName) {
+            for (Reservation r : confirmedReservations) {
+                if (r.guestName.equals(guestName)) return true;
+            }
+            return false;
         }
     }
 
@@ -231,11 +256,60 @@ public class HotelBookingApplication {
         }
     }
 
+    // ---------------- UC10: Booking Cancellation ----------------
+    static class CancellationService {
+        RoomAllocationService allocationService;
+        BookingHistory history;
+        AddOnServiceManager serviceManager;
+        Map<String, String> confirmedReservations;
+        Stack<String> rollbackStack; // Stores room IDs for rollback
+
+        CancellationService(RoomAllocationService allocationService, BookingHistory history,
+                            AddOnServiceManager serviceManager, Map<String, String> confirmedReservations) {
+            this.allocationService = allocationService;
+            this.history = history;
+            this.serviceManager = serviceManager;
+            this.confirmedReservations = confirmedReservations;
+            this.rollbackStack = new Stack<>();
+        }
+
+        void cancelBooking(String guestName) {
+            if (!history.exists(guestName)) {
+                System.out.println("Cancellation failed: No active reservation found for " + guestName);
+                return;
+            }
+
+            String roomId = confirmedReservations.get(guestName);
+            String roomType = null;
+
+            // Find room type
+            for (Map.Entry<String, Set<String>> entry : allocationService.allocatedRooms.entrySet()) {
+                if (entry.getValue().contains(roomId)) {
+                    roomType = entry.getKey();
+                    break;
+                }
+            }
+
+            if (roomType == null) {
+                System.out.println("Cancellation failed: Could not locate room type for " + guestName);
+                return;
+            }
+
+            // LIFO rollback
+            rollbackStack.push(roomId);
+            allocationService.releaseRoom(roomType, roomId);
+            history.removeReservation(guestName);
+            serviceManager.removeServices(roomId);
+            confirmedReservations.remove(guestName);
+
+            System.out.println("Booking cancelled for " + guestName + " | RoomID: " + roomId);
+        }
+    }
+
     // ---------------- Main Method ----------------
     public static void main(String[] args) {
-        System.out.println("Welcome to Book My Stay App v5.0!");
+        System.out.println("Welcome to Book My Stay App v6.0!");
 
-        // UC2: Display Rooms
         Room singleRoom = new SingleRoom();
         Room doubleRoom = new DoubleRoom();
         Room suiteRoom = new SuiteRoom();
@@ -244,19 +318,16 @@ public class HotelBookingApplication {
         doubleRoom.displayRoom();
         suiteRoom.displayRoom();
 
-        // UC3: Inventory
         Inventory inventory = new Inventory();
         inventory.displayAvailability();
 
-        // UC5: Booking Queue
         BookingQueue queue = new BookingQueue();
         queue.addRequest(new Reservation("Alice", "Single Room"));
         queue.addRequest(new Reservation("Bob", "Double Room"));
         queue.addRequest(new Reservation("Charlie", "Suite Room"));
 
-        // UC6: Room Allocation
         RoomAllocationService allocationService = new RoomAllocationService(inventory);
-        Map<String, String> confirmedReservations = new HashMap<>(); // guest -> roomId
+        Map<String, String> confirmedReservations = new HashMap<>();
         BookingHistory bookingHistory = new BookingHistory();
 
         while (queue.hasPendingRequests()) {
@@ -274,7 +345,6 @@ public class HotelBookingApplication {
         allocationService.displayAllocatedRooms();
         inventory.displayAvailability();
 
-        // UC7: Add-On Services
         AddOnServiceManager serviceManager = new AddOnServiceManager();
         for (String guest : confirmedReservations.keySet()) {
             String roomId = confirmedReservations.get(guest);
@@ -291,26 +361,18 @@ public class HotelBookingApplication {
         }
         serviceManager.displayAllServices();
 
-        // UC8: Booking History Report
         BookingReportService reportService = new BookingReportService();
         reportService.generateReport(bookingHistory);
 
-        // UC9: Example of Error Handling
-        try {
-            String requestedRoomType = "Single Room";
-            BookingValidator.validateRoomType(requestedRoomType, inventory.getRoomAvailabilityMap());
-            BookingValidator.validateAvailability(requestedRoomType, inventory.getRoomAvailabilityMap());
+        // UC10: Cancellation demonstration
+        CancellationService cancellationService = new CancellationService(allocationService, bookingHistory, serviceManager, confirmedReservations);
 
-            String reservationId = allocationService.allocateRoom(requestedRoomType);
-
-            Service breakfast = new Service("Breakfast", 200);
-            BookingValidator.validateService(breakfast);
-            serviceManager.addService(reservationId, breakfast);
-
-            System.out.println("Booking successful for " + requestedRoomType + " | Reservation ID: " + reservationId);
-
-        } catch (InvalidBookingException e) {
-            System.err.println("Booking failed: " + e.getMessage());
-        }
+        System.out.println("\n--- Performing Booking Cancellations ---");
+        cancellationService.cancelBooking("Alice");
+        cancellationService.cancelBooking("David"); // Non-existent booking
+        allocationService.displayAllocatedRooms();
+        inventory.displayAvailability();
+        reportService.generateReport(bookingHistory);
+        serviceManager.displayAllServices();
     }
 }
